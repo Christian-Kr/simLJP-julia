@@ -103,9 +103,6 @@ function simulation()
   const sigma::Float64 = 3.4e-10
   const epsilon::Float64 = 1.65e-21
 
-  # Results of the simulation for further analyzing.
-  temperatures::Vector = []
-  
   timeStep::Float64 = 0.0001 * sigma * sqrt(mass / epsilon)
   timeStep2::Float64 = timeStep^2
 
@@ -130,7 +127,7 @@ function simulation()
   forces = fill(fill(0.0, dim), particles)
 
   # Die Temperaturen des Systems für jeden Zeitschritt.
-  temperatures = fill(0.0, steps)
+  temperatures::Array{Float64, 1} = fill(0.0, steps)
     
   # Starten der Hauptschleife für die Berechnung der neuen Positionen.
   for i = 2 : steps
