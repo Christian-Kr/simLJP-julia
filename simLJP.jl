@@ -3,6 +3,7 @@
 using PyCall
 
 @pyimport matplotlib.pyplot as pyplot
+@pyimport matplotlib.animation as animation
 
 using Distributions
 
@@ -75,12 +76,13 @@ velocity: Velocity of the particle as a vector with n-coordinates.
 
 return:   The temperature in unit Kelvin.
 """
-function temperature(mass::Float64, velocities::Vector, particles::Int32)
+function temperature(mass::Float64, velocities::Array{Float64, 2},
+                     particles::Int32)
   const kB::Float64 = 1.38064852e-23
   
   s = 0.0
-  for i = 1:particles, j = 1:length(velocities[1])
-    s += velocities[i][j]^2
+  for i = 1:size(velocities, 1), j = 1:size(velocities, 2)
+    s += velocities[i, j]^2
   end
 
   return s * mass / (kB * 3 * (particles - 1))
@@ -126,7 +128,10 @@ function simulation()
   # Create the velocity array and init the coordinates to the normal
   # distribution.
   dist = Normal(0.0, sqrt(initTemp))
-  velocities = fill(fill(rand(dist), dim), particles)
+  velocities::Array{Float64, 2} = fill(0.0, dim, particles)
+  for i = 1:dim, j = 1:particles
+    velocities[i, j] = rand(dist)
+  end
 
   # Create the accelerations and forces array, which are zero at the beginning.
   accelerations = fill(fill(0.0, dim), particles)
@@ -148,14 +153,14 @@ function simulation()
         forces[k] += -force
       end
       
-      positions[:, j, i] = adjustPosition(position + velocities[j] * timeStep
-        + 0.5 * accelerations[j] * timeStep2, velocities[j], sideLength)[1]
+      positions[:, j, i], velocities[:, j] = adjustPosition(position + velocities[:, j] * timeStep
+        + 0.5 * accelerations[j] * timeStep2, velocities[:, j], sideLength)
 
       # Beschleunigungen aktualisieren
       accelerations[j] = forces[j] / mass
 
       # Geschwindigkeit aktualisieren
-      velocities[j] = velocities[j] + accelerations[j] * timeStep
+      velocities[:, j] = velocities[:, j] + accelerations[j] * timeStep
     end
     # Berechne und speicher die Temperatur für den Schritt.
     temperatures[i] = temperature(mass, velocities, particles)
@@ -167,9 +172,26 @@ end
 
 @time result = simulation()
 
-pyplot.title("Molecular Dynamics Simulation", fontsize = 14)
-pyplot.plot([i for i in 1:size(result[2], 1)], result[2])
-pyplot.xlabel("Timesteps")
-pyplot.ylabel("Temperature [K]")
-pyplot.show()
+function showAnimationPlot()
+  positions = result[1]
+  plots = [pyplot.plot([positions[1, i, j] for i in 1:size(positions, 2)],
+                [positions[2, i, j] for i in 1:size(positions, 2)], "ro")
+           for j in 1:size(positions, 3)]
+  
+  pyplot.axis([-6e-10, 6e-10, -6e-10, 6e-10])
+  fig1 = pyplot.figure(1)
+  animation.ArtistAnimation(fig1, plots, interval = 1, blit = false)
+  pyplot.show()
+end
+
+function showTemperaturePlot()
+  pyplot.title("Molecular Dynamics Simulation", fontsize = 14)
+  pyplot.plot([i for i in 1:size(result[2], 1)], result[2])
+  pyplot.xlabel("Timesteps")
+  pyplot.ylabel("Temperature [K]")
+  pyplot.show()
+end
+
+showTemperaturePlot()
+# showAnimationPlot()
 
