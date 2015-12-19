@@ -89,7 +89,7 @@ end
 "Main simulation function for running the system."
 function simulation()
   # Different properties for the simulated system.
-  const steps::Int32 = 50000
+  const steps::Int32 = 5000
   const particles::Int32 = 64
   const sideLength::Float64 = 6.0e-10
   const dim::Int8 = 2
@@ -104,13 +104,12 @@ function simulation()
   const epsilon::Float64 = 1.65e-21
 
   # Results of the simulation for further analyzing.
-  positions::Vector = []
   temperatures::Vector = []
   
   timeStep::Float64 = 0.0001 * sigma * sqrt(mass / epsilon)
   timeStep2::Float64 = timeStep^2
 
-  positions = fill(fill(fill(0.0, dim), particles), steps)
+  positions::Array{Float64, 3} = fill(0.0, dim, particles, steps)
   numPartSide = 64^(1 / dim)
   distance = sideLength / (numPartSide + 1)
   multX::Float64 = 0.0
@@ -121,7 +120,7 @@ function simulation()
     
     if multX == 0 multX = numPartSide end
 
-    positions[1][i] = [-(sideLength / 2) + distance * multX,
+    positions[:, i, 1] = [-(sideLength / 2) + distance * multX,
       -(sideLength / 2) + distance * (multY + 1)]
   end
 
@@ -136,17 +135,17 @@ function simulation()
   # Starten der Hauptschleife für die Berechnung der neuen Positionen.
   for i = 2 : steps
     for j = 1 : particles
-      position = positions[i - 1][j]
+      position = positions[:, j, i - 1]
       
       # Kräfte aktualisieren...
       force::Vector = [0.0, 0.0]
       for k = j + 1 : particles 
-        force = calculateLJP(position, positions[i - 1][k], epsilon, sigma)
+        force = calculateLJP(position, positions[:, k, i - 1], epsilon, sigma)
         forces[j] += force
         forces[k] += -force
       end
       
-      positions[i][j] = adjustPosition(position + velocities[j] * timeStep
+      positions[:, j, i] = adjustPosition(position + velocities[j] * timeStep
         + 0.5 * accelerations[j] * timeStep2, velocities[j], sideLength)[1]
 
       # Beschleunigungen aktualisieren
@@ -166,7 +165,7 @@ end
 @time result = simulation()
 
 pyplot.title("Molecular Dynamics Simulation", fontsize = 14)
-pyplot.plot([i for i in 1:length(result[2])], result[2])
+pyplot.plot([i for i in 1:size(result[2], 1)], result[2])
 pyplot.xlabel("Timesteps")
 pyplot.ylabel("Temperature [K]")
 pyplot.show()
