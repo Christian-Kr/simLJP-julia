@@ -135,7 +135,7 @@ function simulation()
 
   # Create the accelerations and forces array, which are zero at the beginning.
   accelerations::Array{Float64, 2} = fill(0.0, dim, particles)
-  forces = fill(fill(0.0, dim), particles)
+  forces::Array{Float64, 2} = fill(0.0, dim, particles)
 
   # Die Temperaturen des Systems für jeden Zeitschritt.
   temperatures::Array{Float64, 1} = fill(0.0, steps)
@@ -149,22 +149,22 @@ function simulation()
       force::Vector = [0.0, 0.0]
       for k = j + 1 : particles 
         force = calculateLJP(position, positions[:, k, i - 1], epsilon, sigma)
-        forces[j] += force
-        forces[k] += -force
+        forces[:, j] += force
+        forces[:, k] += -force
       end
       
       positions[:, j, i], velocities[:, j] = adjustPosition(position + velocities[:, j] * timeStep
         + 0.5 * accelerations[:, j] * timeStep2, velocities[:, j], sideLength)
 
       # Beschleunigungen aktualisieren
-      accelerations[:, j] = forces[j] / mass
+      accelerations[:, j] = forces[:, j] / mass
 
       # Geschwindigkeit aktualisieren
       velocities[:, j] = velocities[:, j] + accelerations[:, j] * timeStep
     end
     # Berechne und speicher die Temperatur für den Schritt.
     temperatures[i] = temperature(mass, velocities, particles)
-    fill!(forces, [0.0, 0.0])
+    fill!(forces, 0.0)
   end
   
   return (positions, temperatures)
