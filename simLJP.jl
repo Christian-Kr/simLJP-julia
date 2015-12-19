@@ -92,8 +92,8 @@ function simulation()
   const steps::Int32 = 5000
   const particles::Int32 = 64
   const sideLength::Float64 = 6.0e-10
-  const dim::Int8 = 2
-  const initTemp::Int16 = 25
+  const dim::Int32 = 2
+  const initTemp::Int32 = 25
 
   # Physical properties of the particles.
   const diameter::Float64 = 2.6e-10
