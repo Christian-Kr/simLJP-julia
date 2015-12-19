@@ -134,7 +134,7 @@ function simulation()
   end
 
   # Create the accelerations and forces array, which are zero at the beginning.
-  accelerations = fill(fill(0.0, dim), particles)
+  accelerations::Array{Float64, 2} = fill(0.0, dim, particles)
   forces = fill(fill(0.0, dim), particles)
 
   # Die Temperaturen des Systems für jeden Zeitschritt.
@@ -154,13 +154,13 @@ function simulation()
       end
       
       positions[:, j, i], velocities[:, j] = adjustPosition(position + velocities[:, j] * timeStep
-        + 0.5 * accelerations[j] * timeStep2, velocities[:, j], sideLength)
+        + 0.5 * accelerations[:, j] * timeStep2, velocities[:, j], sideLength)
 
       # Beschleunigungen aktualisieren
-      accelerations[j] = forces[j] / mass
+      accelerations[:, j] = forces[j] / mass
 
       # Geschwindigkeit aktualisieren
-      velocities[:, j] = velocities[:, j] + accelerations[j] * timeStep
+      velocities[:, j] = velocities[:, j] + accelerations[:, j] * timeStep
     end
     # Berechne und speicher die Temperatur für den Schritt.
     temperatures[i] = temperature(mass, velocities, particles)
