@@ -133,36 +133,39 @@ function simulation()
     velocities[i, j] = rand(dist)
   end
 
-  # Create the accelerations and forces array, which are zero at the beginning.
+  # Create the accelerations, temperatures and forces array, which are zero at
+  # the beginning.
   accelerations::Array{Float64, 2} = fill(0.0, dim, particles)
   forces::Array{Float64, 2} = fill(0.0, dim, particles)
-
-  # Die Temperaturen des Systems für jeden Zeitschritt.
   temperatures::Array{Float64, 1} = fill(0.0, steps)
     
-  # Starten der Hauptschleife für die Berechnung der neuen Positionen.
+  # Running main loop
   for i = 2 : steps
     for j = 1 : particles
       position = positions[:, j, i - 1]
       
-      # Kräfte aktualisieren...
+      # Update forces
       force::Vector = [0.0, 0.0]
       for k = j + 1 : particles 
         force = calculateLJP(position, positions[:, k, i - 1], epsilon, sigma)
         forces[:, j] += force
         forces[:, k] += -force
       end
-      
-      positions[:, j, i], velocities[:, j] = adjustPosition(position + velocities[:, j] * timeStep
-        + 0.5 * accelerations[:, j] * timeStep2, velocities[:, j], sideLength)
 
-      # Beschleunigungen aktualisieren
+      # Update particle position followed by a correction of particle position
+      # and velocitiy.
+      positions[:, j, i], velocities[:, j] = adjustPosition(position +
+        velocities[:, j] * timeStep + 0.5 * accelerations[:, j] * timeStep2,
+        velocities[:, j], sideLength)
+
+      # Update accelerations
       accelerations[:, j] = forces[:, j] / mass
 
-      # Geschwindigkeit aktualisieren
+      # Update velocities
       velocities[:, j] = velocities[:, j] + accelerations[:, j] * timeStep
     end
-    # Berechne und speicher die Temperatur für den Schritt.
+    
+    # Calculate and save temperature for every step.
     temperatures[i] = temperature(mass, velocities, particles)
     fill!(forces, 0.0)
   end
