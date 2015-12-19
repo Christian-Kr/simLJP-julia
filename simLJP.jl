@@ -14,13 +14,15 @@ using Distributions
 ################################################################################
 # Functions
 
-#= Calculating the force between two particles based on the
+"""
+Calculating the force between two particles based on the
 Lennard-Jones-Potential.
 
 positionA: Position of the first particle.
 positionB: Position of the second particle. 
 
-return:    A vector with the resulting forces to every coordinate. =#
+return:    A vector with the resulting forces to every coordinate.
+"""
 function calculateLJP(positionA::Vector, positionB::Vector, epsilon::Float64,
                       sigma::Float64)
   r = norm(positionA - positionB)
@@ -29,7 +31,8 @@ function calculateLJP(positionA::Vector, positionB::Vector, epsilon::Float64,
   return force * (positionA - positionB)
 end
 
-#= Adjust the given position to fit in the given area. There may be a closed or
+"""
+Adjust the given position to fit in the given area. There may be a closed or
 a periodic box.
 
 position:     The positions to correct.
@@ -37,7 +40,8 @@ velocity:     The current velocity of the particle.
 sideLength:   The length of a box with equal side length.
 systemClosed: True if the system is a closed box and false if it is periodic. 
 
-return:       The new position and velocity as a two component list. =#
+return:       The new position and velocity as a two component list.
+"""
 function adjustPosition(position::Vector, velocity::Vector, sideLength::Float64,
                         systemClosed = true)
   # We suggest, that the center of the box has the coordinates [0, 0, 0].
@@ -62,13 +66,15 @@ function adjustPosition(position::Vector, velocity::Vector, sideLength::Float64,
   return (position, velocity)
 end
 
-#= Calculate the temperature of the system based on the mass and velocity of
+"""
+Calculate the temperature of the system based on the mass and velocity of
 every particle.
 
 mass:     Mass of the particle.
 velocity: Velocity of the particle as a vector with n-coordinates.
 
-return:   The temperature in unit Kelvin. =#
+return:   The temperature in unit Kelvin.
+"""
 function temperature(mass::Float64, velocities::Vector, particles::Int32)
   const kB::Float64 = 1.38064852e-23
   
@@ -80,7 +86,7 @@ function temperature(mass::Float64, velocities::Vector, particles::Int32)
   return s * mass / (kB * 3 * (particles - 1))
 end
 
-#= Main simulation function for running the system. =#
+"Main simulation function for running the system."
 function simulation()
   # Different properties for the simulated system.
   const steps::Int32 = 50000
