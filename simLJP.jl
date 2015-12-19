@@ -106,7 +106,9 @@ function simulation()
   timeStep::Float64 = 0.0001 * sigma * sqrt(mass / epsilon)
   timeStep2::Float64 = timeStep^2
 
+  # Create the positions array and init the start positions.
   positions::Array{Float64, 3} = fill(0.0, dim, particles, steps)
+
   numPartSide = 64^(1 / dim)
   distance = sideLength / (numPartSide + 1)
   multX::Float64 = 0.0
@@ -121,8 +123,12 @@ function simulation()
       -(sideLength / 2) + distance * (multY + 1)]
   end
 
+  # Create the velocity array and init the coordinates to the normal
+  # distribution.
   dist = Normal(0.0, sqrt(initTemp))
   velocities = fill(fill(rand(dist), dim), particles)
+
+  # Create the accelerations and forces array, which are zero at the beginning.
   accelerations = fill(fill(0.0, dim), particles)
   forces = fill(fill(0.0, dim), particles)
 
