@@ -21,7 +21,7 @@ type Model
   particles::Int64
   sideLength::Float64
   dim::Int64
-  initTemp::Int64
+  initTemp::Float64
 
   # Physical properties of the particles.
   diameter::Float64
@@ -48,7 +48,7 @@ function Model()
   particles::Int64 = 64
   sideLength::Float64 = 6.0e-10
   dim::Int64 = 2
-  initTemp::Int64 = 25
+  initTemp::Float64 = 25
   diameter::Float64 = 2.6e-10
   mass::Float64 = 6.69e-26
   sigma::Float64 = 3.4e-10
@@ -69,10 +69,11 @@ positionB: Position of the second particle.
 
 return:    A vector with the resulting forces to every coordinate.
 """
-function calculateLJP(positionA::Vector, positionB::Vector, epsilon::Float64,
+function calculateLJP(positionA::Array{Float64, 1},
+                      positionB::Array{Float64, 1}, epsilon::Float64,
                       sigma::Float64)
-  r = norm(positionA - positionB)
-  force = 24 * epsilon * (2 * (sigma^12 / r^13) - (sigma^6 / r^7))
+  r::Float64 = norm(positionA - positionB)
+  force::Float64 = 24 * epsilon * (2 * (sigma^12 / r^13) - (sigma^6 / r^7))
 
   return force * (positionA - positionB)
 end
@@ -88,12 +89,13 @@ systemClosed: True if the system is a closed box and false if it is periodic.
 
 return:       The new position and velocity as a two component list.
 """
-function adjustPosition(position::Vector, velocity::Vector, sideLength::Float64,
+function adjustPosition(position::Array{Float64, 1},
+                        velocity::Array{Float64, 1}, sideLength::Float64,
                         systemClosed = true)
   # We suggest, that the center of the box has the coordinates [0, 0, 0].
   halfLength = sideLength / 2
   
-  if systemClosed == false
+  if systemClosed::Bool == false
     for i = 1 : length(position)
       if position[i] > halfLength
         position[i] = -halfLength
@@ -130,7 +132,7 @@ function temperature(mass::Float64, velocities::Array{Float64, 2},
     s += velocities[i, j]^2
   end
 
-  return s * mass / (kB * 3 * (particles - 1))
+  return s * mass / (kB * 3.0 * (particles - 1))
 end
 
 "Main simulation function for running the system."
@@ -140,8 +142,8 @@ function simulation()
   # Create the positions array and init the start positions.
   positions::Array{Float64, 3} = fill(0.0, m.dim, m.particles, m.steps)
 
-  numPartSide::Float64 = 64^(1 / m.dim)
-  distance::Float64 = m.sideLength / (numPartSide + 1)
+  numPartSide::Float64 = 64.0^(1.0 / m.dim)
+  distance::Float64 = m.sideLength / (numPartSide + 1.0)
   multX::Float64 = 0.0
   multY::Float64 = 0.0
   for i::Int64 = 1 : m.particles
@@ -150,15 +152,15 @@ function simulation()
     
     if multX == 0 multX = numPartSide end
 
-    positions[:, i, 1] = [-(m.sideLength / 2) + distance * multX,
-      -(m.sideLength / 2) + distance * (multY + 1)]
+    positions[1, i, 1] = -(m.sideLength / 2.0) + distance * multX
+    positions[2, i, 1] = -(m.sideLength / 2.0) + distance * (multY + 1.0)
   end
 
   # Create the velocity array and init the coordinates to the normal
   # distribution.
   dist = Normal(0.0, sqrt(m.initTemp))
   velocities::Array{Float64, 2} = fill(0.0, m.dim, m.particles)
-  for i::Int64 = 1:m.dim, j = 1:m.particles
+  for i::Int64 = 1:m.dim, j::Int64 = 1:m.particles
     velocities[i, j] = rand(dist)
   end
 
@@ -176,23 +178,31 @@ function simulation()
       # Update forces
       for k::Int64 = j + 1 : m.particles
         positionB = positions[:, k, i - 1]
-        forces[:, j] += calculateLJP(positionA, positionB, m.epsilon, m.sigma)
-        forces[:, k] -= forces[:, j]
+        #forces[:, j] += calculateLJP(positionA, positionB, m.epsilon, m.sigma)
+        force = calculateLJP(positionA, positionB, m.epsilon, m.sigma)
+        forces[1, j] += force[1]
+        forces[2, j] += force[2]
+        forces[1, k] -= force[1]
+        forces[2, k] -= force[2]
       end
 
       # Update particle position followed by a correction of particle position
       # and velocitiy.
-      velocity = velocities[:, j]
-      acceleration = accelerations[:, j]
-      positions[:, j, i], velocities[:, j] = adjustPosition(positionA +
-        velocity * m.timeStep + 0.5 * acceleration * m.timeStep2,
-        velocity, m.sideLength)
+      result = adjustPosition(positionA + velocities[:, j] * m.timeStep + 0.5 *
+                              accelerations[:, j] * m.timeStep2,
+                              velocities[:, j], m.sideLength)
+      positions[1, j, i] = result[1][1]
+      positions[2, j, i] = result[1][2]
+      velocities[1, j] = result[2][1]
+      velocities[2, j] = result[2][2]
 
       # Update accelerations
-      accelerations[:, j] = forces[:, j] / m.mass
+      accelerations[1, j] = forces[1, j] / m.mass
+      accelerations[2, j] = forces[2, j] / m.mass
 
       # Update velocities
-      velocities[:, j] = velocities[:, j] + accelerations[:, j] * m.timeStep
+      velocities[1, j] = velocities[1, j] + accelerations[1, j] * m.timeStep
+      velocities[2, j] = velocities[2, j] + accelerations[2, j] * m.timeStep
     end
     
     # Calculate and save temperature for every step.
