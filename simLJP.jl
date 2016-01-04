@@ -17,11 +17,11 @@ using Distributions
 
 type Model
   # Different properties for the simulated system.
-  steps::Int32
-  particles::Int32
+  steps::Int64
+  particles::Int64
   sideLength::Float64
-  dim::Int32
-  initTemp::Int32
+  dim::Int64
+  initTemp::Int64
 
   # Physical properties of the particles.
   diameter::Float64
@@ -44,11 +44,11 @@ Constructor function for type Model.
 return: The contructed model object.
 """
 function Model()
-  steps::Int32 = 5000
-  particles::Int32 = 64
+  steps::Int64 = 5000
+  particles::Int64 = 64
   sideLength::Float64 = 6.0e-10
-  dim::Int32 = 2
-  initTemp::Int32 = 25
+  dim::Int64 = 2
+  initTemp::Int64 = 25
   diameter::Float64 = 2.6e-10
   mass::Float64 = 6.69e-26
   sigma::Float64 = 3.4e-10
@@ -122,11 +122,11 @@ velocity: Velocity of the particle as a vector with n-coordinates.
 return:   The temperature in unit Kelvin.
 """
 function temperature(mass::Float64, velocities::Array{Float64, 2},
-                     particles::Int32)
+                     particles::Int64)
   const kB::Float64 = 1.38064852e-23
   
-  s = 0.0
-  for i = 1:size(velocities, 1), j = 1:size(velocities, 2)
+  s::Float64 = 0.0
+  for i::Int64 = 1:size(velocities, 1), j::Int64 = 1:size(velocities, 2)
     s += velocities[i, j]^2
   end
 
@@ -140,11 +140,11 @@ function simulation()
   # Create the positions array and init the start positions.
   positions::Array{Float64, 3} = fill(0.0, m.dim, m.particles, m.steps)
 
-  numPartSide = 64^(1 / m.dim)
-  distance = m.sideLength / (numPartSide + 1)
+  numPartSide::Float64 = 64^(1 / m.dim)
+  distance::Float64 = m.sideLength / (numPartSide + 1)
   multX::Float64 = 0.0
   multY::Float64 = 0.0
-  for i = 1 : m.particles
+  for i::Int64 = 1 : m.particles
     multX = divrem(i, numPartSide)[2]
     multY = divrem(i - 1, numPartSide)[1]
     
@@ -158,7 +158,7 @@ function simulation()
   # distribution.
   dist = Normal(0.0, sqrt(m.initTemp))
   velocities::Array{Float64, 2} = fill(0.0, m.dim, m.particles)
-  for i = 1:m.dim, j = 1:m.particles
+  for i::Int64 = 1:m.dim, j = 1:m.particles
     velocities[i, j] = rand(dist)
   end
 
@@ -169,12 +169,12 @@ function simulation()
   temperatures::Array{Float64, 1} = fill(0.0, m.steps)
 
   # Running main loop
-  for i::Int32 = 2 : m.steps
-    for j::Int32 = 1 : m.particles
+  for i::Int64 = 2 : m.steps
+    for j::Int64 = 1 : m.particles
       positionA = positions[:, j, i - 1]
       
       # Update forces
-      for k = j + 1 : m.particles
+      for k::Int64 = j + 1 : m.particles
         positionB = positions[:, k, i - 1]
         forces[:, j] += calculateLJP(positionA, positionB, m.epsilon, m.sigma)
         forces[:, k] -= forces[:, j]
@@ -203,6 +203,7 @@ function simulation()
   return (positions, temperatures)
 end
 
+#@code_warntype simulation()
 @time result = simulation()
 
 function showAnimationPlot()
