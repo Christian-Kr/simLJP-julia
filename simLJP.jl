@@ -13,7 +13,52 @@ using Distributions
 # http://docs.julialang.org/en/release-0.4/manual/performance-tips/
 
 ################################################################################
+# Types
+
+type Model
+  # Different properties for the simulated system.
+  steps::Int32
+  particles::Int32
+  sideLength::Float64
+  dim::Int32
+  initTemp::Int32
+
+  # Physical properties of the particles.
+  diameter::Float64
+  mass::Float64
+
+  # Properties for the Lennard-Jones-Potential.
+  sigma::Float64
+  epsilon::Float64
+
+  timeStep::Float64
+  timeStep2::Float64
+end
+
+################################################################################
 # Functions
+
+"""
+Constructor function for type Model.
+
+return: The contructed model object.
+"""
+function Model()
+  steps::Int32 = 5000
+  particles::Int32 = 64
+  sideLength::Float64 = 6.0e-10
+  dim::Int32 = 2
+  initTemp::Int32 = 25
+  diameter::Float64 = 2.6e-10
+  mass::Float64 = 6.69e-26
+  sigma::Float64 = 3.4e-10
+  epsilon::Float64 = 1.65e-21
+  timeStep::Float64 = 0.0001 * sigma * sqrt(mass / epsilon)
+  timeStep2::Float64 = timeStep^2
+
+  return Model(steps, particles, sideLength, dim, initTemp, diameter, mass,
+               sigma, epsilon, timeStep, timeStep2)
+end
 
 """
 Calculating the force between two particles based on the
@@ -90,83 +135,68 @@ end
 
 "Main simulation function for running the system."
 function simulation()
-  # Different properties for the simulated system.
-  const steps::Int32 = 5000
-  const particles::Int32 = 64
-  const sideLength::Float64 = 6.0e-10
-  const dim::Int32 = 2
-  const initTemp::Int32 = 25
-
-  # Physical properties of the particles.
-  const diameter::Float64 = 2.6e-10
-  const mass::Float64 = 6.69e-26
-
-  # Properties for the Lennard-Jones-Potential.
-  const sigma::Float64 = 3.4e-10
-  const epsilon::Float64 = 1.65e-21
-
-  timeStep::Float64 = 0.0001 * sigma * sqrt(mass / epsilon)
-  timeStep2::Float64 = timeStep^2
-
+  m::Model = Model()
+  
   # Create the positions array and init the start positions.
-  positions::Array{Float64, 3} = fill(0.0, dim, particles, steps)
+  positions::Array{Float64, 3} = fill(0.0, m.dim, m.particles, m.steps)
 
-  numPartSide = 64^(1 / dim)
-  distance = sideLength / (numPartSide + 1)
+  numPartSide = 64^(1 / m.dim)
+  distance = m.sideLength / (numPartSide + 1)
   multX::Float64 = 0.0
   multY::Float64 = 0.0
-  for i = 1 : particles
+  for i = 1 : m.particles
     multX = divrem(i, numPartSide)[2]
     multY = divrem(i - 1, numPartSide)[1]
     
     if multX == 0 multX = numPartSide end
 
-    positions[:, i, 1] = [-(sideLength / 2) + distance * multX,
-      -(sideLength / 2) + distance * (multY + 1)]
+    positions[:, i, 1] = [-(m.sideLength / 2) + distance * multX,
+      -(m.sideLength / 2) + distance * (multY + 1)]
   end
 
   # Create the velocity array and init the coordinates to the normal
   # distribution.
-  dist = Normal(0.0, sqrt(initTemp))
-  velocities::Array{Float64, 2} = fill(0.0, dim, particles)
-  for i = 1:dim, j = 1:particles
+  dist = Normal(0.0, sqrt(m.initTemp))
+  velocities::Array{Float64, 2} = fill(0.0, m.dim, m.particles)
+  for i = 1:m.dim, j = 1:m.particles
     velocities[i, j] = rand(dist)
   end
 
   # Create the accelerations, temperatures and forces array, which are zero at
   # the beginning.
-  accelerations::Array{Float64, 2} = fill(0.0, dim, particles)
-  forces::Array{Float64, 2} = fill(0.0, dim, particles)
-  temperatures::Array{Float64, 1} = fill(0.0, steps)
-    
+  accelerations::Array{Float64, 2} = fill(0.0, m.dim, m.particles)
+  forces::Array{Float64, 2} = fill(0.0, m.dim, m.particles)
+  temperatures::Array{Float64, 1} = fill(0.0, m.steps)
+
   # Running main loop
-  for i = 2 : steps
-    for j = 1 : particles
-      position = positions[:, j, i - 1]
+  for i::Int32 = 2 : m.steps
+    for j::Int32 = 1 : m.particles
+      positionA = positions[:, j, i - 1]
       
       # Update forces
-      force::Vector = [0.0, 0.0]
-      for k = j + 1 : particles 
-        force = calculateLJP(position, positions[:, k, i - 1], epsilon, sigma)
-        forces[:, j] += force
-        forces[:, k] += -force
+      for k = j + 1 : m.particles
+        positionB = positions[:, k, i - 1]
+        forces[:, j] += calculateLJP(positionA, positionB, m.epsilon, m.sigma)
+        forces[:, k] -= forces[:, j]
       end
 
       # Update particle position followed by a correction of particle position
       # and velocitiy.
-      positions[:, j, i], velocities[:, j] = adjustPosition(position +
-        velocities[:, j] * timeStep + 0.5 * accelerations[:, j] * timeStep2,
-        velocities[:, j], sideLength)
+      velocity = velocities[:, j]
+      acceleration = accelerations[:, j]
+      positions[:, j, i], velocities[:, j] = adjustPosition(positionA +
+        velocity * m.timeStep + 0.5 * acceleration * m.timeStep2,
+        velocity, m.sideLength)
 
       # Update accelerations
-      accelerations[:, j] = forces[:, j] / mass
+      accelerations[:, j] = forces[:, j] / m.mass
 
       # Update velocities
-      velocities[:, j] = velocities[:, j] + accelerations[:, j] * timeStep
+      velocities[:, j] = velocities[:, j] + accelerations[:, j] * m.timeStep
     end
     
     # Calculate and save temperature for every step.
-    temperatures[i] = temperature(mass, velocities, particles)
+    temperatures[i] = temperature(m.mass, velocities, m.particles)
     fill!(forces, 0.0)
   end
   
