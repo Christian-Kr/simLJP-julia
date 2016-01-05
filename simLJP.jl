@@ -89,14 +89,14 @@ systemClosed: True if the system is a closed box and false if it is periodic.
 
 return:       The new position and velocity as a two component list.
 """
-function adjustPosition(position::Array{Float64, 1},
+function adjustPosition(position::Array{Float64, 1}, dim::Int64,
                         velocity::Array{Float64, 1}, sideLength::Float64,
-                        systemClosed = true)
+                        systemClosed::Bool = true)
   # We suggest, that the center of the box has the coordinates [0, 0, 0].
-  halfLength = sideLength / 2
+  halfLength::Float64 = sideLength / 2.0
   
   if systemClosed::Bool == false
-    for i = 1 : length(position)
+    for i::Int64 = 1 : dim
       if position[i] > halfLength
         position[i] = -halfLength
       elseif position[i] < -halfLength
@@ -104,7 +104,7 @@ function adjustPosition(position::Array{Float64, 1},
       end    
     end
   else
-    for i = 1 : length(position)
+    for i::Int64 = 1 : dim
       if position[i] > halfLength || position[i] < -halfLength
         velocity[i] *= -1
       end
@@ -158,11 +158,8 @@ function simulation()
 
   # Create the velocity array and init the coordinates to the normal
   # distribution.
-  dist = Normal(0.0, sqrt(m.initTemp))
-  velocities::Array{Float64, 2} = fill(0.0, m.dim, m.particles)
-  for i::Int64 = 1:m.dim, j::Int64 = 1:m.particles
-    velocities[i, j] = rand(dist)
-  end
+  dist = Normal(0.0, m.initTemp^(0.5))
+  velocities::Array{Float64, 2} = rand(dist, m.dim, m.particles)
 
   # Create the accelerations, temperatures and forces array, which are zero at
   # the beginning.
@@ -170,14 +167,21 @@ function simulation()
   forces::Array{Float64, 2} = fill(0.0, m.dim, m.particles)
   temperatures::Array{Float64, 1} = fill(0.0, m.steps)
 
+  positionA::Array{Float64, 1} = fill(0.0, m.dim)
+  positionB::Array{Float64, 1} = fill(0.0, m.dim)
+  velocity::Array{Float64, 1} = fill(0.0, m.dim)
+  acceleration::Array{Float64, 1} = fill(0.0, m.dim)
   # Running main loop
   for i::Int64 = 2 : m.steps
     for j::Int64 = 1 : m.particles
-      positionA = positions[:, j, i - 1]
+      positionA[1] = positions[1, j, i - 1]
+      positionA[2] = positions[2, j, i - 1]
       
       # Update forces
       for k::Int64 = j + 1 : m.particles
-        positionB = positions[:, k, i - 1]
+        positionB[1] = positions[1, k, i - 1]
+        positionB[2] = positions[2, k, i - 1]
+        
         #forces[:, j] += calculateLJP(positionA, positionB, m.epsilon, m.sigma)
         force = calculateLJP(positionA, positionB, m.epsilon, m.sigma)
         forces[1, j] += force[1]
@@ -188,9 +192,13 @@ function simulation()
 
       # Update particle position followed by a correction of particle position
       # and velocitiy.
-      result = adjustPosition(positionA + velocities[:, j] * m.timeStep + 0.5 *
-                              accelerations[:, j] * m.timeStep2,
-                              velocities[:, j], m.sideLength)
+      velocity[1] = velocities[1, j]
+      velocity[2] = velocities[2, j]
+      acceleration[1] = accelerations[1, j]
+      acceleration[2] = accelerations[2, j]
+      result = adjustPosition(positionA + velocity * m.timeStep + 0.5 *
+                              acceleration * m.timeStep2, m.dim,
+                              velocity, m.sideLength)
       positions[1, j, i] = result[1][1]
       positions[2, j, i] = result[1][2]
       velocities[1, j] = result[2][1]
