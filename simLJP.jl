@@ -71,7 +71,7 @@ Constructor function for type Model.
 return: The contructed model object.
 """
 function Model()
-  steps::Int64 = 5000
+  steps::Int64 = 50000
   particles::Int64 = 64
   sideLength::Float64 = 6.0e-10
   dim::Int64 = 2
@@ -112,13 +112,20 @@ positionB: Position of the second particle.
 
 return:    A vector with the resulting forces to every coordinate.
 """
-function calculateLJP(positionA::Array{Float64, 1},
-                      positionB::Array{Float64, 1}, epsilon::Float64,
-                      sigma::Float64)
-  r::Float64 = norm(positionA - positionB)
-  force::Float64 = 24 * epsilon * (2 * (sigma^12 / r^13) - (sigma^6 / r^7))
+function calculateLJP!(forces::Array{Float64, 2}, positions::Array{Float64, 3},
+    posIndexA, posIndexB, step, epsilon::Float64, sigma::Float64)
 
-  return force * (positionA - positionB)
+  diff::Array{Float64, 1} = fill(0.0, 2)
+  diff[1] = positions[1, posIndexA, step] - positions[1, posIndexB, step]
+  diff[2] = positions[2, posIndexA, step] - positions[2, posIndexB, step]
+  
+  r::Float64 = norm(diff)
+  pot::Float64 = 24 * epsilon * (2 * (sigma^12 / r^13) - (sigma^6 / r^7))
+  
+  forces[1, posIndexA] += pot * diff[1]
+  forces[2, posIndexA] += pot * diff[2]
+  forces[1, posIndexB] -= pot * diff[1]
+  forces[2, posIndexB] -= pot * diff[2]
 end
 
 """
@@ -192,15 +199,7 @@ function simulation(m::Model)
       
       # Update forces
       for k::Int64 = j + 1 : m.particles
-        positionB[1] = m.positions[1, k, i - 1]
-        positionB[2] = m.positions[2, k, i - 1]
-        
-        #forces[:, j] += calculateLJP(positionA, positionB, m.epsilon, m.sigma)
-        force = calculateLJP(positionA, positionB, m.epsilon, m.sigma)
-        m.forces[1, j] += force[1]
-        m.forces[2, j] += force[2]
-        m.forces[1, k] -= force[1]
-        m.forces[2, k] -= force[2]
+        calculateLJP!(m.forces, m.positions, j, k, i - 1, m.epsilon, m.sigma)
       end
 
       # Update particle position followed by a correction of particle position
@@ -232,10 +231,10 @@ function simulation(m::Model)
   end
 end
 
-#@code_warntype simulation()
 m = Model()
-@time result = simulation(m)
-#@profile result = simulation()
+@time simulation(m)
+#@code_warntype simulation(m)
+#@profile simulation(m)
 
 function showAnimationPlot()
   positions = result[1]
