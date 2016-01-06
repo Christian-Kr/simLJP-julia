@@ -72,7 +72,7 @@ Constructor function for type Model.
 return: The contructed model object.
 """
 function Model()
-  steps::Int64 = 500000
+  steps::Int64 = 5000
   particles::Int64 = 64
   sideLength::Float64 = 6.0e-10
   halfSideLength = sideLength / 2.0
@@ -227,7 +227,6 @@ m = Model()
 #@profile simulation(m)
 
 function showAnimationPlot()
-  positions = result[1]
   plots = [pyplot.plot([m.positions[1, i, j] for i in 1:size(m.positions, 2)],
                 [m.positions[2, i, j] for i in 1:size(m.positions, 2)], "ro")
            for j in 1:size(m.positions, 3)]
@@ -247,5 +246,5 @@ function showTemperaturePlot()
 end
 
 showTemperaturePlot()
-# showAnimationPlot()
+#showAnimationPlot()
 
