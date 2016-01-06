@@ -6,6 +6,7 @@ using PyCall
 @pyimport matplotlib.animation as animation
 
 using Distributions
+using ProfileView
 
 ################################################################################
 # Global variables
@@ -44,7 +45,7 @@ Constructor function for type Model.
 return: The contructed model object.
 """
 function Model()
-  steps::Int64 = 5000
+  steps::Int64 = 1
   particles::Int64 = 64
   sideLength::Float64 = 6.0e-10
   dim::Int64 = 2
@@ -171,6 +172,8 @@ function simulation()
   positionB::Array{Float64, 1} = fill(0.0, m.dim)
   velocity::Array{Float64, 1} = fill(0.0, m.dim)
   acceleration::Array{Float64, 1} = fill(0.0, m.dim)
+  result::Tuple{Array{Float64, 1}, Array{Float64, 1}} = ([0, 0], [0, 0])
+
   # Running main loop
   for i::Int64 = 2 : m.steps
     for j::Int64 = 1 : m.particles
@@ -222,7 +225,8 @@ function simulation()
 end
 
 #@code_warntype simulation()
-@time result = simulation()
+#@time result = simulation()
+#@profile result = simulation()
 
 function showAnimationPlot()
   positions = result[1]
