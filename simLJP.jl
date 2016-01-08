@@ -31,11 +31,16 @@ type Model
 
   # Properties for the Lennard-Jones-Potential.
   sigma::Float64
+  sigma6::Float64
+  sigma12::Float64
   epsilon::Float64
+  epsilon24::Float64
 
   timeStep::Float64
   timeStep2::Float64
 
+  rcut::Float64
+  
   positions::Array{Float64, 3}
   velocities::Array{Float64, 2}
  
@@ -81,9 +86,13 @@ function Model()
   diameter::Float64 = 2.6e-10
   mass::Float64 = 6.69e-26
   sigma::Float64 = 3.4e-10
+  sigma6::Float64 = sigma^6
+  sigma12::Float64 = sigma^12
   epsilon::Float64 = 1.65e-21
+  epsilon24::Float64 = 24 * epsilon
   timeStep::Float64 = 0.0001 * sigma * sqrt(mass / epsilon)
   timeStep2::Float64 = timeStep^2
+  rcut::Float64 = 2 * sigma
 
   # Init the initial positions.
   positions::Array{Float64, 3} = fill(0.0, dim, particles, steps)
@@ -101,33 +110,49 @@ function Model()
   temperatures::Array{Float64, 1} = fill(0.0, steps)
 
   return Model(steps, particles, sideLength, halfSideLength, dim, initTemp,
-               diameter, mass, sigma, epsilon, timeStep, timeStep2, positions,
-               velocities, accelerations, forces, temperatures)
+               diameter, mass, sigma, sigma6, sigma12, epsilon, epsilon24,
+               timeStep, timeStep2, rcut, positions, velocities, accelerations,
+               forces, temperatures)
 end
 
 """
-Calculating the force between two particles based on the
-Lennard-Jones-Potential.
+Calculating the Lennard-Jones potential force.
 
-positionA: Position of the first particle.
-positionB: Position of the second particle. 
-
-return:    A vector with the resulting forces to every coordinate.
+epsilon: Property of the potential.
+sigma:   Property of the potential.
 """
-function calculateLJP!(forces::Array{Float64, 2}, positions::Array{Float64, 3},
-    posIndexA, posIndexB, step, epsilon::Float64, sigma::Float64)
+function ljp(epsilon24::Float64, sigma6::Float64,
+    sigma12::Float64, r::Float64)
+
+  return (epsilon24 * (2.0 * (sigma12 / r^13) - (sigma6 / r^7)))::Float64
+end
+
+"""
+Calculating the force between two particles.
+
+forces:    Forces object that will be updated.
+positions: Positions object of the particles.
+posIndexA: Index of the first particle.
+posIndexB: Index of the second particle.
+
+"""
+function potential!(forces::Array{Float64, 2}, positions::Array{Float64, 3},
+    posIndexA, posIndexB, step, epsilon24::Float64, sigma6::Float64,
+    sigma12::Float64, rcut::Float64)
 
   diff::Array{Float64, 1} = fill(0.0, 2)
   diff[1] = positions[1, posIndexA, step] - positions[1, posIndexB, step]
   diff[2] = positions[2, posIndexA, step] - positions[2, posIndexB, step]
   
   r::Float64 = norm(diff)
-  pot::Float64 = 24 * epsilon * (2 * (sigma^12 / r^13) - (sigma^6 / r^7))
+  if r < rcut
+    pot::Float64 = ljp(epsilon24, sigma6, sigma12, r)
   
-  forces[1, posIndexA] += pot * diff[1]
-  forces[2, posIndexA] += pot * diff[2]
-  forces[1, posIndexB] -= pot * diff[1]
-  forces[2, posIndexB] -= pot * diff[2]
+    forces[1, posIndexA] += pot * diff[1]
+    forces[2, posIndexA] += pot * diff[2]
+    forces[1, posIndexB] -= pot * diff[1]
+    forces[2, posIndexB] -= pot * diff[2]
+  end
 end
 
 """
@@ -138,8 +163,6 @@ position:     The positions to correct.
 velocity:     The current velocity of the particle.
 sideLength:   The length of a box with equal side length.
 systemClosed: True if the system is a closed box and false if it is periodic. 
-
-return:       The new position and velocity as a two component list.
 """
 function adjustPosition!(position::Array{Float64, 1},
     velocities::Array{Float64, 2}, index::Int64, halfSideLength::Float64,
@@ -193,7 +216,8 @@ function simulation(m::Model)
     for j::Int64 = 1 : m.particles
       # Update forces
       for k::Int64 = j + 1 : m.particles
-        calculateLJP!(m.forces, m.positions, j, k, i - 1, m.epsilon, m.sigma)
+        potential!(m.forces, m.positions, j, k, i - 1, m.epsilon24, m.sigma6,
+            m.sigma12, m.rcut)
       end
 
       # Update particle position followed by a correction of particle position
@@ -223,7 +247,7 @@ end
 
 m = Model()
 @time simulation(m)
-#@code_warntype simulation(m)
+@code_warntype simulation(m)
 #@profile simulation(m)
 
 function showAnimationPlot()
