@@ -304,11 +304,7 @@ function simulation(m::Model)
   end
 end
 
-m = Model()
-@time simulation(m)
-#@code_warntype simulation(m)
-
-function showAnimationPlot()
+function showAnimationPlot(m::Model)
   plots = [pyplot.plot([m.positions[1, i, j] for i in 1:size(m.positions, 2)],
                 [m.positions[2, i, j] for i in 1:size(m.positions, 2)], "ro")
            for j in 1:size(m.positions, 3)]
@@ -319,16 +315,16 @@ function showAnimationPlot()
   pyplot.show()
 end
 
-function showTemperaturePlot()
+function showTemperaturePlot(m::Model)
   pyplot.title("Molecular Dynamics Simulation", fontsize = 14)
   pyplot.plot([i for i in 1:m.steps], m.temperatures)
-  pyplot.axis([0, m.steps, 0, m.initTemp * 2])
+  pyplot.axis([0, m.steps, m.initTemp - 20, m.initTemp + 20])
   pyplot.xlabel("Timesteps")
   pyplot.ylabel("Temperature [K]")
   pyplot.show()
 end
 
-function writeAnimation()
+function writeAnimation(m::Model)
   for i = 1:m.steps
     file = open(string("result/sim-", i, ".csv"), "w")
 
@@ -340,7 +336,8 @@ function writeAnimation()
   end
 end
 
-#writeAnimation()
-#showTemperaturePlot()
-showAnimationPlot()
+m = Model()
+@time simulation(m)
+
+showTemperaturePlot(m)
 
