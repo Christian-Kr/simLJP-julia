@@ -1,4 +1,13 @@
 #!/usr/bin/env julia
+################################################################################
+# This script is a short program for everyone who is interested in molecular
+# dynamics. It will simulate a small amount of gas (default is argon) in a fixed
+# volume. The potential will be desribed by the Lennard-Jones potential. The
+# simulation itself is implemented with the velocity Verlet algorithm.
+# Feel free to change/distribute/whatever the script.
+# Also, if you have questions feel free to contact me at:
+#     <Coding ät Christian-Krippendorf.de>
+################################################################################
 
 using PyCall
 
@@ -21,7 +30,6 @@ type Model
   particles::Int64
   sideLength::Float64
   halfSideLength::Float64
-  dim::Int64
   initTemp::Float64
 
   # Physical properties of the particles.
@@ -53,22 +61,37 @@ end
 ################################################################################
 # Functions
 
-function initPositions!(positions::Array{Float64, 3}, dim::Int64,
-    sideLength::Float64, particles::Int64)
+function correctVelocities!(velocities::Array{Float64, 2}, mass::Float64,
+    particles::Int64, initTemp::Int64)
 
-  numPartSide::Float64 = 64.0^(1.0 / dim)
+  s::Float64 = 0.0
+  for i::Int64 = 1:size(velocities, 1), j::Int64 = 1:size(velocities, 2)
+    s += velocities[i, j]^2
+  end
+
+  lambda = ((3 * (particles - 1) * 1.38064852e-23 * initTemp) / (mass * s))^(1/2)
+
+  for i::Int64 = 1:size(velocities, 1), j::Int64 = 1:size(velocities, 2)
+    velocities[i, j] *= lambda
+  end
+end
+
+function initPositions!(positions::Array{Float64, 3}, sideLength::Float64,
+      halfSideLength::Float64, particles::Int64)
+
+  # How many particles on a line.
+  numPartSide::Int64 = Int64(round(particles^(1.0 / 3.0)))
+  numPartSide2::Int64 = numPartSide^2
+  
+  #The distance between every particle and the box limit.
   distance::Float64 = sideLength / (numPartSide + 1.0)
-  multX::Float64 = 0.0
-  multY::Float64 = 0.0
 
-  for i::Int64 = 1 : particles
-    multX = divrem(i, numPartSide)[2]
-    multY = divrem(i - 1, numPartSide)[1]
-    
-    if multX == 0 multX = numPartSide end
-
-    positions[1, i, 1] = -(sideLength / 2.0) + distance * multX
-    positions[2, i, 1] = -(sideLength / 2.0) + distance * (multY + 1.0)
+  parPos::Int64 = 0
+  for x = 1:numPartSide, y = 1:numPartSide, z = 1:numPartSide
+    parPos = z + (y - 1) * numPartSide + (x - 1) * numPartSide^2
+    positions[1, parPos, 1] = -halfSideLength + distance * z
+    positions[2, parPos, 1] = -halfSideLength + distance * y
+    positions[3, parPos, 1] = -halfSideLength + distance * x
   end
 end
 
@@ -78,14 +101,27 @@ Constructor function for type Model.
 return: The contructed model object.
 """
 function Model()
-  steps::Int64 = 5000
+  # To high takes to long. :-D
+  steps::Int64 = 10000
+
+  # Please choose a number with an integer result at ^(1/3).
   particles::Int64 = 64
+
+  # The side length is one complete side length of the box.
   sideLength::Float64 = 6.0e-10
-  halfSideLength = sideLength / 2.0
-  dim::Int64 = 2
-  initTemp::Float64 = 25
+  halfSideLength::Float64 = sideLength / 2.0
+
+  # The starting temperature of the particles which correlates to the velocity
+  # of the particles.
+  initTemp::Int64 = 50
+
+  # Properties related to the atoms/molecules you choose.
   diameter::Float64 = 2.6e-10
   mass::Float64 = 6.69e-26
+
+  # Different properties for the Lennard-Jones potential. You should change them
+  # only if you know hat you are doing as they are well choosen to the default
+  # system.
   sigma::Float64 = 3.4e-10
   sigma6::Float64 = sigma^6
   sigma12::Float64 = sigma^12
@@ -93,26 +129,29 @@ function Model()
   epsilon24::Float64 = 24 * epsilon
   factor1::Float64 = epsilon24 * 2 * sigma12
   factor2::Float64 = epsilon24 * sigma6
-  timeStep::Float64 = 0.0001 * sigma * sqrt(mass / epsilon)
+
+  # Properties of the simulated system.
+  timeStep::Float64 = 0.001 * sigma * sqrt(mass / epsilon)
   timeStep2::Float64 = timeStep^2
   rcut::Float64 = 2 * sigma
 
   # Init the initial positions.
-  positions::Array{Float64, 3} = fill(0.0, dim, particles, steps)
-  initPositions!(positions, dim, sideLength, particles)
+  positions::Array{Float64, 3} = fill(0.0, 3, particles, steps)
+  initPositions!(positions, sideLength, halfSideLength, particles)
 
   # Create the velocity array and init the coordinates to the normal
   # distribution.
   dist = Normal(0.0, initTemp^(0.5))
-  velocities::Array{Float64, 2} = rand(dist, dim, particles)
+  velocities::Array{Float64, 2} = rand(dist, 3, particles)
+  correctVelocities!(velocities, mass, particles, initTemp);
 
   # Create the accelerations, temperatures and forces array, which are zero at
   # the beginning.
-  accelerations::Array{Float64, 2} = fill(0.0, dim, particles)
-  forces::Array{Float64, 2} = fill(0.0, dim, particles)
+  accelerations::Array{Float64, 2} = fill(0.0, 3, particles)
+  forces::Array{Float64, 2} = fill(0.0, 3, particles)
   temperatures::Array{Float64, 1} = fill(0.0, steps)
 
-  return Model(steps, particles, sideLength, halfSideLength, dim, initTemp,
+  return Model(steps, particles, sideLength, halfSideLength, initTemp,
                diameter, mass, sigma, sigma6, sigma12, epsilon, epsilon24,
                factor1, factor2, timeStep, timeStep2, rcut, positions,
                velocities, accelerations, forces, temperatures)
@@ -136,9 +175,10 @@ posIndexB: Index of the second particle.
 step:      Step of simulation.
 """
 function potential!(m::Model, posIndexA::Int64, posIndexB::Int64, step::Int64)
-  diff::Array{Float64, 1} = fill(0.0, 2)
+  diff::Array{Float64, 1} = fill(0.0, 3)
   diff[1] = m.positions[1, posIndexA, step] - m.positions[1, posIndexB, step]
   diff[2] = m.positions[2, posIndexA, step] - m.positions[2, posIndexB, step]
+  diff[3] = m.positions[3, posIndexA, step] - m.positions[3, posIndexB, step]
   
   r::Float64 = norm(diff)
   if r < m.rcut
@@ -146,8 +186,10 @@ function potential!(m::Model, posIndexA::Int64, posIndexB::Int64, step::Int64)
   
     m.forces[1, posIndexA] += pot * diff[1]
     m.forces[2, posIndexA] += pot * diff[2]
+    m.forces[3, posIndexA] += pot * diff[3]
     m.forces[1, posIndexB] -= pot * diff[1]
     m.forces[2, posIndexB] -= pot * diff[2]
+    m.forces[3, posIndexB] -= pot * diff[3]
   end
 
   return 0.0
@@ -168,7 +210,7 @@ function adjustPosition!(position::Array{Float64, 1},
 
   # We suggest, that the center of the box has the coordinates [0, 0, 0].
   if systemClosed::Bool == false
-    for i::Int64 = 1 : 2
+    for i::Int64 = 1 : 3
       if position[i] > halfSideLength
         position[i] = -halfSideLength
       elseif position[i] < -halfSideLength
@@ -176,7 +218,7 @@ function adjustPosition!(position::Array{Float64, 1},
       end    
     end
   else
-    for i::Int64 = 1 : 2
+    for i::Int64 = 1 : 3
       if position[i] > halfSideLength || position[i] < -halfSideLength
         velocities[i, index] *= -1
       end
@@ -207,33 +249,53 @@ end
 
 "Main simulation function for running the system."
 function simulation(m::Model)
-  position::Array{Float64, 1} = fill(0.0, m.dim)
+  position::Array{Float64, 1} = fill(0.0, 3)
 
+  # Update forces
+  for j = 1:m.particles
+    for k = j + 1:m.particles
+      potential!(m, j, k, 1)
+    end
+
+    # Update accelerations
+    m.accelerations[1, j] = m.forces[1, j] / m.mass
+    m.accelerations[2, j] = m.forces[2, j] / m.mass
+    m.accelerations[3, j] = m.forces[3, j] / m.mass
+  end
+  
   # Running main loop
-  for i::Int64 = 2 : m.steps
-    for j::Int64 = 1 : m.particles
-      # Update forces
-      for k::Int64 = j + 1 : m.particles
-        potential!(m, j, k, i - 1)
-      end
+  for i = 1 : m.steps - 1
+    for j = 1 : m.particles
+      # Update velocities + 0.5 timestep.
+      m.velocities[1, j] = m.velocities[1, j] + 0.5 * m.accelerations[1, j] * m.timeStep
+      m.velocities[2, j] = m.velocities[2, j] + 0.5 * m.accelerations[2, j] * m.timeStep
+      m.velocities[3, j] = m.velocities[3, j] + 0.5 * m.accelerations[3, j] * m.timeStep
 
       # Update particle position followed by a correction of particle position
       # and velocitiy.
-      position[1] = m.positions[1, j, i - 1] + m.velocities[1, j] *
-        m.timeStep + 0.5 * m.accelerations[1, j] * m.timeStep2
-      position[2] = m.positions[2, j, i - 1] + m.velocities[2, j] *
-        m.timeStep + 0.5 * m.accelerations[2, j] * m.timeStep2
+      position[1] = m.positions[1, j, i] + m.velocities[1, j] * m.timeStep
+      position[2] = m.positions[2, j, i] + m.velocities[2, j] * m.timeStep
+      position[3] = m.positions[3, j, i] + m.velocities[3, j] * m.timeStep      
       adjustPosition!(position, m.velocities, j, m.halfSideLength)
-      m.positions[1, j, i] = position[1]
-      m.positions[2, j, i] = position[2]
-
+      m.positions[1, j, i + 1] = position[1]
+      m.positions[2, j, i + 1] = position[2]
+      m.positions[3, j, i + 1] = position[3]      
+    end
+    for j = 1 : m.particles
+      # Update forces
+      for k = j + 1 : m.particles
+        potential!(m, j, k, i + 1)
+      end
+      
       # Update accelerations
       m.accelerations[1, j] = m.forces[1, j] / m.mass
       m.accelerations[2, j] = m.forces[2, j] / m.mass
+      m.accelerations[3, j] = m.forces[3, j] / m.mass
 
-      # Update velocities
-      m.velocities[1, j] = m.velocities[1, j] + m.accelerations[1, j] * m.timeStep
-      m.velocities[2, j] = m.velocities[2, j] + m.accelerations[2, j] * m.timeStep
+      # Update velocities + full timestep.
+      m.velocities[1, j] = m.velocities[1, j] + 0.5 * m.accelerations[1, j] * m.timeStep
+      m.velocities[2, j] = m.velocities[2, j] + 0.5 * m.accelerations[2, j] * m.timeStep
+      m.velocities[3, j] = m.velocities[3, j] + 0.5 * m.accelerations[3, j] * m.timeStep
     end
     
     # Calculate and save temperature for every step.
@@ -260,11 +322,25 @@ end
 function showTemperaturePlot()
   pyplot.title("Molecular Dynamics Simulation", fontsize = 14)
   pyplot.plot([i for i in 1:m.steps], m.temperatures)
+  pyplot.axis([0, m.steps, 0, m.initTemp * 2])
   pyplot.xlabel("Timesteps")
   pyplot.ylabel("Temperature [K]")
   pyplot.show()
 end
 
-showTemperaturePlot()
-#showAnimationPlot()
+function writeAnimation()
+  for i = 1:m.steps
+    file = open(string("result/sim-", i, ".csv"), "w")
+
+    for j = 1:m.particles
+      write(file, join(m.positions[:, j, i], ","), "\n")
+    end
+
+    close(file)
+  end
+end
+
+#writeAnimation()
+#showTemperaturePlot()
+showAnimationPlot()
 
