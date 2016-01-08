@@ -6,7 +6,6 @@ using PyCall
 @pyimport matplotlib.animation as animation
 
 using Distributions
-#using ProfileView
 
 ################################################################################
 # Global variables
@@ -35,7 +34,9 @@ type Model
   sigma12::Float64
   epsilon::Float64
   epsilon24::Float64
-
+  factor1::Float64
+  factor2::Float64
+  
   timeStep::Float64
   timeStep2::Float64
 
@@ -90,6 +91,8 @@ function Model()
   sigma12::Float64 = sigma^12
   epsilon::Float64 = 1.65e-21
   epsilon24::Float64 = 24 * epsilon
+  factor1::Float64 = epsilon24 * 2 * sigma12
+  factor2::Float64 = epsilon24 * sigma6
   timeStep::Float64 = 0.0001 * sigma * sqrt(mass / epsilon)
   timeStep2::Float64 = timeStep^2
   rcut::Float64 = 2 * sigma
@@ -111,48 +114,43 @@ function Model()
 
   return Model(steps, particles, sideLength, halfSideLength, dim, initTemp,
                diameter, mass, sigma, sigma6, sigma12, epsilon, epsilon24,
-               timeStep, timeStep2, rcut, positions, velocities, accelerations,
-               forces, temperatures)
+               factor1, factor2, timeStep, timeStep2, rcut, positions,
+               velocities, accelerations, forces, temperatures)
 end
 
 """
 Calculating the Lennard-Jones potential force.
 
-epsilon: Property of the potential.
-sigma:   Property of the potential.
+m: Model of simulation.
+r: Distance of particles.
 """
-function ljp(epsilon24::Float64, sigma6::Float64,
-    sigma12::Float64, r::Float64)
-
-  return (epsilon24 * (2.0 * (sigma12 / r^13) - (sigma6 / r^7)))::Float64
+function ljp(m::Model, r::Float64)
+  return ((m.factor1 / r^13) - (m.factor2 / r^7))::Float64
 end
 
 """
 Calculating the force between two particles.
 
-forces:    Forces object that will be updated.
-positions: Positions object of the particles.
 posIndexA: Index of the first particle.
 posIndexB: Index of the second particle.
-
+step:      Step of simulation.
 """
-function potential!(forces::Array{Float64, 2}, positions::Array{Float64, 3},
-    posIndexA, posIndexB, step, epsilon24::Float64, sigma6::Float64,
-    sigma12::Float64, rcut::Float64)
-
+function potential!(m::Model, posIndexA::Int64, posIndexB::Int64, step::Int64)
   diff::Array{Float64, 1} = fill(0.0, 2)
-  diff[1] = positions[1, posIndexA, step] - positions[1, posIndexB, step]
-  diff[2] = positions[2, posIndexA, step] - positions[2, posIndexB, step]
+  diff[1] = m.positions[1, posIndexA, step] - m.positions[1, posIndexB, step]
+  diff[2] = m.positions[2, posIndexA, step] - m.positions[2, posIndexB, step]
   
   r::Float64 = norm(diff)
-  if r < rcut
-    pot::Float64 = ljp(epsilon24, sigma6, sigma12, r)
+  if r < m.rcut
+    pot::Float64 = ljp(m, r)
   
-    forces[1, posIndexA] += pot * diff[1]
-    forces[2, posIndexA] += pot * diff[2]
-    forces[1, posIndexB] -= pot * diff[1]
-    forces[2, posIndexB] -= pot * diff[2]
+    m.forces[1, posIndexA] += pot * diff[1]
+    m.forces[2, posIndexA] += pot * diff[2]
+    m.forces[1, posIndexB] -= pot * diff[1]
+    m.forces[2, posIndexB] -= pot * diff[2]
   end
+
+  return 0.0
 end
 
 """
@@ -216,8 +214,7 @@ function simulation(m::Model)
     for j::Int64 = 1 : m.particles
       # Update forces
       for k::Int64 = j + 1 : m.particles
-        potential!(m.forces, m.positions, j, k, i - 1, m.epsilon24, m.sigma6,
-            m.sigma12, m.rcut)
+        potential!(m, j, k, i - 1)
       end
 
       # Update particle position followed by a correction of particle position
@@ -247,8 +244,7 @@ end
 
 m = Model()
 @time simulation(m)
-@code_warntype simulation(m)
-#@profile simulation(m)
+#@code_warntype simulation(m)
 
 function showAnimationPlot()
   plots = [pyplot.plot([m.positions[1, i, j] for i in 1:size(m.positions, 2)],
