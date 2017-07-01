@@ -9,12 +9,15 @@
 #     <Coding ät Christian-Krippendorf.de>
 ################################################################################
 
+push!(LOAD_PATH, ".")
+
 using PyCall
 
 @pyimport matplotlib.pyplot as pyplot
 @pyimport matplotlib.animation as animation
 
 using Distributions
+using Potentials
 
 ################################################################################
 # Global variables
@@ -38,12 +41,8 @@ type Model
 
   # Properties for the Lennard-Jones-Potential.
   sigma::Float64
-  sigma6::Float64
-  sigma12::Float64
   epsilon::Float64
-  epsilon24::Float64
-  factor1::Float64
-  factor2::Float64
+  ljm::Potentials.LennardJonesModel
   
   timeStep::Float64
   timeStep2::Float64
@@ -102,7 +101,7 @@ return: The contructed model object.
 """
 function Model()
   # To high takes to long. :-D
-  steps::Int64 = 10000
+  steps::Int64 = 1000
 
   # Please choose a number with an integer result at ^(1/3).
   particles::Int64 = 64
@@ -123,12 +122,9 @@ function Model()
   # only if you know hat you are doing as they are well choosen to the default
   # system.
   sigma::Float64 = 3.4e-10
-  sigma6::Float64 = sigma^6
-  sigma12::Float64 = sigma^12
   epsilon::Float64 = 1.65e-21
-  epsilon24::Float64 = 24 * epsilon
-  factor1::Float64 = epsilon24 * 2 * sigma12
-  factor2::Float64 = epsilon24 * sigma6
+  ljm::Potentials.LennardJonesModel = Potentials.LennardJonesModel(sigma,
+      epsilon)
 
   # Properties of the simulated system.
   timeStep::Float64 = 0.001 * sigma * sqrt(mass / epsilon)
@@ -152,19 +148,8 @@ function Model()
   temperatures::Array{Float64, 1} = fill(0.0, steps)
 
   return Model(steps, particles, sideLength, halfSideLength, initTemp,
-               diameter, mass, sigma, sigma6, sigma12, epsilon, epsilon24,
-               factor1, factor2, timeStep, timeStep2, rcut, positions,
-               velocities, accelerations, forces, temperatures)
-end
-
-"""
-Calculating the Lennard-Jones potential force.
-
-m: Model of simulation.
-r: Distance of particles.
-"""
-function ljp(m::Model, r::Float64)
-  return ((m.factor1 / r^13) - (m.factor2 / r^7))::Float64
+               diameter, mass, sigma, epsilon, ljm, timeStep, timeStep2, rcut,
+               positions, velocities, accelerations, forces, temperatures)
 end
 
 """
