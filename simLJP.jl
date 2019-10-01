@@ -6,7 +6,7 @@
 # simulation itself is implemented with the velocity Verlet algorithm.
 # Feel free to change/distribute/whatever the script.
 # Also, if you have questions feel free to contact me at:
-#     <Coding ät Christian-Krippendorf.de>
+#     <cerebrosus at gmx.net>
 ################################################################################
 
 push!(LOAD_PATH, ".")
